@@ -1,3 +1,11 @@
+=== 2.0.5a / 27 Apr 2011
+
+ * Add preserve_time to preserve the mtime of uploaded file to download operation
+ * Add follow_symlinks to follow the symlinks to download operation
+ * Add dont_overwrite_if_same_file compare mtime && size to not download an existing file to download operation
+
+ * Add preserve_time to preserve the mtime of uploaded file to upload operation
+ * Add dont_overwrite_if_same_file compare mtime && size to not download an existing file to upload operation
 
 === 2.0.5 / 19 Aug 2010
 
