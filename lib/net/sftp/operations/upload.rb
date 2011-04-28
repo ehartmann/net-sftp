@@ -307,8 +307,12 @@ module Net; module SFTP; module Operations
 
           skip_file = false
           if dont_overwrite_if_same_file?
-            stat = sftp.lstat!(remote)
-            skip_file = (size && mtime && stat.mtime == mtime.to_i && stat.size == size)
+            begin
+              stat = sftp.lstat!(remote)
+              skip_file = (size && mtime && stat.mtime == mtime.to_i && stat.size == size)
+            rescue Net::SFTP::StatusException => ex
+              skip_file = false
+            end
           end
 
           if skip_file
