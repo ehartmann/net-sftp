@@ -168,6 +168,21 @@ module Net; module SFTP; module Operations
       options[:recursive]
     end
 
+    # When downloading, should the symlinks should be followed
+    def follow_symlinks?
+      options[:follow_symlinks]
+    end
+
+    # When downloading, should the mtime & atime should be preserved
+    def preserve_mtime?
+      options[:preserve_mtime]
+    end
+
+    # When downloading, should the mtime & atime should be preserved
+    def keep_same_file?
+      options[:keep_same_file]
+    end
+
     # Returns true if there are any active requests or pending files or
     # directories.
     def active?
@@ -203,7 +218,7 @@ module Net; module SFTP; module Operations
 
       # A simple struct for encapsulating information about a single remote
       # file or directory that needs to be downloaded.
-      Entry = Struct.new(:remote, :local, :directory, :size, :handle, :offset, :sink)
+      Entry = Struct.new(:remote, :local, :directory, :size, :handle, :offset, :sink, :atime, :mtime)
 
       #--
       # "ruby -w" hates private attributes, so we have to do these longhand
@@ -224,7 +239,7 @@ module Net; module SFTP; module Operations
         options[:read_size] || DEFAULT_READ_SIZE
       end
 
-      # The number of simultaneou SFTP requests to use to effect the download.
+      # The number of simultaneous SFTP requests to use to effect the download.
       # Defaults to 16 for recursive downloads.
       def requests
         options[:requests] || (recursive? ? 16 : 2)
@@ -274,7 +289,10 @@ module Net; module SFTP; module Operations
         else
           response[:names].each do |item|
             next if item.name == "." || item.name == ".."
-            stack << Entry.new(::File.join(entry.remote, item.name), ::File.join(entry.local, item.name), item.directory?, item.attributes.size)
+            local_file = ::File.join(entry.local, item.name)
+            next if keep_same_file? && item.attributes.mtime == ::File.mtime(local_file).to_i && item.attributes.size == ::File.size(local_file)
+
+            stack << Entry.new(::File.join(entry.remote, item.name), local_file, item.directory? || (item.symlink? && follow_symlinks?), item.attributes.size, item.attributes.atime, item.attributes.mtime)
           end
 
           # take this opportunity to enqueue more requests
@@ -330,6 +348,7 @@ module Net; module SFTP; module Operations
         if response.eof?
           update_progress(:close, entry)
           entry.sink.close
+          ::File.utime(Time.at(entry.atime), Time.at(entry.mtime), entry.local) if preserve_mtime? && entry.mtime
           request = sftp.close(entry.handle, &method(:on_close))
           request[:entry] = entry
         elsif !response.ok?
